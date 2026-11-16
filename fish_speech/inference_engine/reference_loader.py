@@ -152,6 +152,8 @@ class ReferenceLoader:
             reference_audio = io.BytesIO(reference_audio)
 
         waveform, original_sr = torchaudio.load(reference_audio, backend=self.backend)
+        if waveform.numel() == 0:
+            raise InvalidInputError("Reference audio is empty")
 
         if waveform.shape[0] > 1:
             waveform = torch.mean(waveform, dim=0, keepdim=True)
@@ -162,7 +164,7 @@ class ReferenceLoader:
             )
             waveform = resampler(waveform)
 
-        audio = waveform.squeeze().numpy()
+        audio = waveform.squeeze(0).numpy()
         return audio
 
     def list_reference_ids(self) -> list[str]:

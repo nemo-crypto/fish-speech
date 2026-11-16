@@ -45,3 +45,9 @@ This is not a comprehensive security audit or a production readiness certificati
 Move exclusive reference-directory creation outside the copy/transcript cleanup handler. If another request wins creation after the existence check, this request now propagates FileExistsError without deleting the winner's directory. Failures after this invocation successfully creates the directory still clean it up. Also reject source directories before attempting an audio copy and preserve the original exception traceback.
 
 A deterministic competing-mkdir regression failed before the change; the paired copy-failure test verifies that owned-directory cleanup remains intact. Full suite: **109 passed, 5 skipped, 62 subtests passed**. This fixes the creation-conflict case, not arbitrary concurrent deletion/replacement or a transactional multi-process reference store. The GPU and security-audit limitations above still apply.
+
+## Follow-up: reference discovery and waveform shape
+
+Reference listing now validates IDs and recursively requires a real transcript file for every audio file, matching load_by_id. Listing tests cover nested layouts, invalid IDs, mixed completeness, transcript directories, and missing roots. Audio loading removes only the channel dimension, preserving a one-dimensional array even for one decoded sample; empty decoded audio raises InvalidInputError before further processing. Real mono/stereo WAV files exercise short inputs and resampling; an empty decoder output is mocked at the IO boundary.
+
+Full suite after both changes: **117 passed, 5 skipped, 62 subtests passed**. The waveform regression failed in three cases before the fix. GPU, pretrained voice-quality, and security-audit limitations above still apply.
