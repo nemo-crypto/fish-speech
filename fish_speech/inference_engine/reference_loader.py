@@ -167,7 +167,7 @@ class ReferenceLoader:
 
     def list_reference_ids(self) -> list[str]:
         """
-        List all valid reference IDs (subdirectory names containing valid audio and .lab files).
+        List valid IDs whose audio files all have corresponding .lab files.
 
         Returns:
             list[str]: List of valid reference IDs
@@ -181,22 +181,17 @@ class ReferenceLoader:
             if not ref_dir.is_dir():
                 continue
 
-            # Check if directory contains at least one audio file and corresponding .lab file
-            audio_files = list_files(
-                ref_dir, AUDIO_EXTENSIONS, recursive=False, sort=False
-            )
-            if not audio_files:
+            try:
+                self._validate_id(ref_dir.name)
+            except InvalidInputError:
                 continue
 
-            # Check if corresponding .lab file exists for at least one audio file
-            has_valid_pair = False
-            for audio_file in audio_files:
-                lab_file = audio_file.with_suffix(".lab")
-                if lab_file.exists():
-                    has_valid_pair = True
-                    break
-
-            if has_valid_pair:
+            audio_files = list_files(
+                ref_dir, AUDIO_EXTENSIONS, recursive=True, sort=False
+            )
+            if audio_files and all(
+                audio_file.with_suffix(".lab").is_file() for audio_file in audio_files
+            ):
                 valid_ids.append(ref_dir.name)
 
         return sorted(valid_ids)
