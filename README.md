@@ -191,3 +191,7 @@ On Seed-TTS Eval, S2 achieves the lowest WER among all evaluated models includin
       url={https://arxiv.org/abs/2610.18010}, 
 }
 ```
+
+## Personal fork review
+
+See the [reliability and performance review](docs/reliability-performance-review.md) for changes, regression-test results, microbenchmarks, and remaining limitations.

@@ -71,6 +71,14 @@ class ServeReferenceAudio(BaseModel):
 
 class ServeTTSRequest(BaseModel):
     text: str
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, text):
+        if not text.strip():
+            raise ValueError("text must contain non-whitespace characters")
+        return text
+
     chunk_length: Annotated[int, conint(ge=100, le=1000, strict=True)] = 200
     # Drama 3 only: generate the whole text in one pass instead of ~300-byte chunks.
     single_chunk: bool = False
