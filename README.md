@@ -1,3 +1,76 @@
+# Fish Speech — Text-to-Speech and Voice Cloning
+
+A personal fork of [fishaudio/fish-speech](https://github.com/fishaudio/fish-speech), with fixes for reference-audio validation, cache behavior, file loading, and reference creation. **语音合成与声音克隆项目：重点改善参考音频处理、错误提示和缓存行为。**
+
+## 使用导航
+
+[项目定位](#项目定位) · [优化说明](#优化说明) · [本地运行](#本地运行) · [验证与边界](#验证与边界) · [原项目文档](#原项目文档)
+
+## 项目定位
+
+适合研究和集成文本转语音（TTS / speech synthesis）、参考音色与声音克隆流程。本仓库是社区贡献 fork，模型、权重和主要生成能力来自 Fish Audio；不是官方服务或独立训练的新模型。
+
+优化代码位于 `improve/reliability-performance-20261116`，独立上游贡献位于 `fix/reliability-review`。安装原项目、官方镜像或官方服务，不代表已经包含本 fork 的待合并补丁。
+
+## 优化说明
+
+| 场景 | 修改后的行为 | 对使用者的意义 |
+| --- | --- | --- |
+| JSON Base64 与 MessagePack 原始参考音频 | 在字段边界校验，保留合法传输方式 | 无效数据更早被发现 |
+| 空白 TTS 文本、非法参考 ID | 返回明确校验错误 | 避免无意义推理或难定位的失败 |
+| 参考目录/音频/转录文件缺失 | 明确报告缺失，不创建空目录 | 用户更容易修正请求和文件布局 |
+| `use_memory_cache="off"` | 不为新参考音频计算缓存哈希或保留 tokens | 关闭缓存时行为与选项含义一致 |
+| 缓存命中 | 复用音频 tokens；ID 命中跳过目录扫描 | 减少重复工作，当前请求文本仍生效 |
+| 大小写扩展名、重复匹配、长内联文本 | 单次枚举、过滤目录、自然排序，长文本可直接使用 | 文件组织和输入更可预测 |
+| 两个请求同时新增同名音色 | 创建失败的请求不删除成功请求的目录 | 修复创建冲突中的数据误删风险 |
+
+关闭缓存不会清空之前已存在的缓存。缓存开启时仍未实现容量上限或租户隔离。流式响应一旦发送 headers，后续参考音频错误可能中断流，而不是返回新的 HTTP 400。
+
+## 本地运行
+
+建议 Python 3.12 和 `uv`。请先按 [安装指南](docs/en/install.md) 选择对应平台的 CPU/CUDA 依赖；以下是支持 CPU extra 的环境示例：
+
+```sh
+git clone --branch improve/reliability-performance-20261116 https://github.com/nemo-crypto/fish-speech.git
+cd fish-speech
+uv sync --python 3.12 --extra cpu
+```
+
+CUDA 环境按指南选择对应 extra，不要同时安装互斥的 CPU/CUDA extras。macOS 依赖与硬件支持也应按安装指南确认。完成依赖安装后，按 [推理指南](docs/en/inference.md) 下载匹配的模型权重并选择 CLI、API 或 WebUI；克隆代码不等于模型已就绪。
+
+参考音色目录示例：
+
+```text
+references/
+  speaker-1/
+    sample.wav
+    sample.lab
+```
+
+`.lab` 文件存放对应音频的 UTF-8 转录文本。请求中 `reference_id` 使用 `speaker-1`，不要传入目录路径；ID 允许字母、数字、连字符、下划线和空格，最长 255 个字符。
+
+## 验证与边界
+
+在安装好项目及测试依赖的环境运行：
+
+```sh
+python -m pytest -q tests/
+```
+
+集成分支结果为 **109 项通过、5 项跳过、62 个 subtests 通过**。GPU 专用检查在本地 Apple 环境跳过；本次没有验证完整预训练模型的克隆音质或 GPU 性能。目录扫描微基准中位耗时从 0.181840 降到 0.158991 秒，仅针对该文件扫描工作负载。
+
+测试环境、可见行为变化与剩余边界见 [逐项审查报告](docs/reliability-performance-review.md)。这不是完整安全审计；服务鉴权、限流和并发存储事务仍需独立设计。
+
+## 贡献与来源
+
+[本次上游 PR #1378](https://github.com/fishaudio/fish-speech/pull/1378)；Base64 校验单独见 [#1377](https://github.com/fishaudio/fish-speech/pull/1377)。
+
+本 fork 保留原项目署名及 [许可证](LICENSE)；代码与不同模型权重的授权条件请以原项目文件为准。修复通过 PR 提交给上游，提交不代表已被接受。可在本 fork 的 [PR 列表](https://github.com/nemo-crypto/fish-speech/pulls) 查看集成情况。
+
+## 原项目文档
+
+以下保留 Fish Audio 的模型介绍、多语言文档、许可说明和部署入口。
+
 <div align="center">
 <h1>Fish Speech</h1>
 
@@ -191,7 +264,3 @@ On Seed-TTS Eval, S2 achieves the lowest WER among all evaluated models includin
       url={https://arxiv.org/abs/2610.18010}, 
 }
 ```
-
-## Personal fork review
-
-See the [reliability and performance review](docs/reliability-performance-review.md) for changes, regression-test results, microbenchmarks, and remaining limitations.
