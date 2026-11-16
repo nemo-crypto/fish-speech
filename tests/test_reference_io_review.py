@@ -103,6 +103,56 @@ class ReferenceIOReviewTest(unittest.TestCase):
                     loader.load_by_id("missing", "off")
             self.assertFalse((root / "references").exists())
 
+    def test_add_reference_race_does_not_delete_another_requests_directory(self):
+        loader = ReferenceLoader()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "input.wav"
+            source.write_bytes(b"audio")
+            references = root / "references"
+            references.mkdir()
+            target = references / "speaker"
+            original_mkdir = Path.mkdir
+
+            def competing_mkdir(path, *args, **kwargs):
+                if path == target:
+                    original_mkdir(path)
+                    (path / "other-request.lab").write_text("keep me")
+                    raise FileExistsError("another request created this reference")
+                return original_mkdir(path, *args, **kwargs)
+
+            def resolve_path(value):
+                return references if value == "references" else Path(value)
+
+            with patch(
+                "fish_speech.inference_engine.reference_loader.Path",
+                side_effect=resolve_path,
+            ):
+                with patch.object(Path, "mkdir", competing_mkdir):
+                    with self.assertRaises(FileExistsError):
+                        loader.add_reference("speaker", str(source), "Hello")
+            self.assertEqual((target / "other-request.lab").read_text(), "keep me")
+
+    def test_add_reference_cleans_up_own_directory_after_copy_failure(self):
+        loader = ReferenceLoader()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "input.wav"
+            source.write_bytes(b"audio")
+            references = root / "references"
+
+            def resolve_path(value):
+                return references if value == "references" else Path(value)
+
+            with patch(
+                "fish_speech.inference_engine.reference_loader.Path",
+                side_effect=resolve_path,
+            ):
+                with patch("shutil.copy2", side_effect=OSError("copy failed")):
+                    with self.assertRaisesRegex(OSError, "copy failed"):
+                        loader.add_reference("speaker", str(source), "Hello")
+            self.assertFalse((references / "speaker").exists())
+
     def test_id_cache_off_does_not_retain_tokens(self):
         loader = ReferenceLoader()
         loader.encode_reference = Mock(return_value="tokens")

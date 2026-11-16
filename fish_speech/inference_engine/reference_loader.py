@@ -224,7 +224,7 @@ class ReferenceLoader:
 
         # Check if audio file exists
         audio_path = Path(wav_file_path)
-        if not audio_path.exists():
+        if not audio_path.is_file():
             raise FileNotFoundError(f"Audio file not found: {wav_file_path}")
 
         # Validate audio file extension
@@ -233,10 +233,11 @@ class ReferenceLoader:
                 f"Unsupported audio format: {audio_path.suffix}. Supported formats: {', '.join(AUDIO_EXTENSIONS)}"
             )
 
-        try:
-            # Create reference directory
-            ref_dir.mkdir(parents=True, exist_ok=False)
+        # Only clean up a directory that this invocation successfully created.
+        # A competing request may create the ID after the existence check.
+        ref_dir.mkdir(parents=True, exist_ok=False)
 
+        try:
             # Determine the target audio filename with original extension
             target_audio_path = ref_dir / f"sample{audio_path.suffix}"
 
@@ -256,13 +257,13 @@ class ReferenceLoader:
 
             logger.info(f"Successfully added reference voice with ID: {id}")
 
-        except Exception as e:
+        except Exception:
             # Clean up on failure
             if ref_dir.exists():
                 import shutil
 
                 shutil.rmtree(ref_dir)
-            raise e
+            raise
 
     def delete_reference(self, id: str) -> None:
         """

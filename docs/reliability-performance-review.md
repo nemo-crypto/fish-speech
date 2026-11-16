@@ -39,3 +39,9 @@ This is about 12.6% lower elapsed time for this directory-listing workload only.
 ## Scope and remaining limits
 
 This is not a comprehensive security audit or a production readiness certification. Cache-on storage remains unbounded and is not isolated by tenant. Server authentication, rate limiting, dependency vulnerability auditing, and reference storage permissions require separate review. No pretrained voice-cloning quality, GPU latency, GPU memory, or multi-GPU measurements were performed. Model weights, numerical precision, and voice-generation algorithms were not modified.
+
+## Follow-up: reference creation failure ownership
+
+Move exclusive reference-directory creation outside the copy/transcript cleanup handler. If another request wins creation after the existence check, this request now propagates FileExistsError without deleting the winner's directory. Failures after this invocation successfully creates the directory still clean it up. Also reject source directories before attempting an audio copy and preserve the original exception traceback.
+
+A deterministic competing-mkdir regression failed before the change; the paired copy-failure test verifies that owned-directory cleanup remains intact. Full suite: **109 passed, 5 skipped, 62 subtests passed**. This fixes the creation-conflict case, not arbitrary concurrent deletion/replacement or a transactional multi-process reference store. The GPU and security-audit limitations above still apply.
