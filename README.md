@@ -10,7 +10,7 @@ A personal fork of [fishaudio/fish-speech](https://github.com/fishaudio/fish-spe
 
 适合研究和集成文本转语音（TTS / speech synthesis）、参考音色与声音克隆流程。本仓库是社区贡献 fork，模型、权重和主要生成能力来自 Fish Audio；不是官方服务或独立训练的新模型。
 
-优化代码位于 `improve/reliability-performance-20261116`，独立上游贡献位于 `fix/reliability-review`。安装原项目、官方镜像或官方服务，不代表已经包含本 fork 的待合并补丁。
+已验证的集成优化位于默认 `main` 分支；首轮独立上游贡献位于 `fix/reliability-review`。安装原项目、官方镜像或官方服务，不代表已经包含本 fork 的待合并补丁。
 
 ## 优化说明
 
@@ -22,6 +22,7 @@ A personal fork of [fishaudio/fish-speech](https://github.com/fishaudio/fish-spe
 | `use_memory_cache="off"` | 不为新参考音频计算缓存哈希或保留 tokens | 关闭缓存时行为与选项含义一致 |
 | 缓存命中 | 复用音频 tokens；ID 命中跳过目录扫描 | 减少重复工作，当前请求文本仍生效 |
 | 大小写扩展名、重复匹配、长内联文本 | 单次枚举、过滤目录、自然排序，长文本可直接使用 | 文件组织和输入更可预测 |
+| 参考音色列表与单采样音频 | 仅列出完整可加载的文件布局，保持解码波形为一维数组 | 避免选中无法加载的音色，以及单采样输入变成标量 |
 | 两个请求同时新增同名音色 | 创建失败的请求不删除成功请求的目录 | 修复创建冲突中的数据误删风险 |
 
 关闭缓存不会清空之前已存在的缓存。缓存开启时仍未实现容量上限或租户隔离。流式响应一旦发送 headers，后续参考音频错误可能中断流，而不是返回新的 HTTP 400。
@@ -31,7 +32,7 @@ A personal fork of [fishaudio/fish-speech](https://github.com/fishaudio/fish-spe
 建议 Python 3.12 和 `uv`。请先按 [安装指南](docs/en/install.md) 选择对应平台的 CPU/CUDA 依赖；以下是支持 CPU extra 的环境示例：
 
 ```sh
-git clone --branch improve/reliability-performance-20261116 https://github.com/nemo-crypto/fish-speech.git
+git clone https://github.com/nemo-crypto/fish-speech.git
 cd fish-speech
 uv sync --python 3.12 --extra cpu
 ```
@@ -57,7 +58,7 @@ references/
 python -m pytest -q tests/
 ```
 
-集成分支结果为 **109 项通过、5 项跳过、62 个 subtests 通过**。GPU 专用检查在本地 Apple 环境跳过；本次没有验证完整预训练模型的克隆音质或 GPU 性能。目录扫描微基准中位耗时从 0.181840 降到 0.158991 秒，仅针对该文件扫描工作负载。
+集成分支结果为 **117 项通过、5 项跳过、62 个 subtests 通过**。GPU 专用检查在本地 Apple 环境跳过；本次没有验证完整预训练模型的克隆音质或 GPU 性能。目录扫描微基准中位耗时从 0.181840 降到 0.158991 秒，仅针对该文件扫描工作负载。
 
 测试环境、可见行为变化与剩余边界见 [逐项审查报告](docs/reliability-performance-review.md)。这不是完整安全审计；服务鉴权、限流和并发存储事务仍需独立设计。
 
