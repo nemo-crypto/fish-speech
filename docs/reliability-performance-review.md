@@ -51,3 +51,7 @@ A deterministic competing-mkdir regression failed before the change; the paired 
 Reference listing now validates IDs and recursively requires a real transcript file for every audio file, matching load_by_id. Listing tests cover nested layouts, invalid IDs, mixed completeness, transcript directories, and missing roots. Audio loading removes only the channel dimension, preserving a one-dimensional array even for one decoded sample; empty decoded audio raises InvalidInputError before further processing. Real mono/stereo WAV files exercise short inputs and resampling; an empty decoder output is mocked at the IO boundary.
 
 Full suite after both changes: **117 passed, 5 skipped, 62 subtests passed**. The waveform regression failed in three cases before the fix. GPU, pretrained voice-quality, and security-audit limitations above still apply.
+
+## Follow-up: reference management ID boundaries
+
+Reference rename/delete endpoints now validate the entire ID using fullmatch, matching ReferenceLoader rules. A trailing newline previously passed the endpoint regex and rename could move the directory/cache to an ID that the loader rejects. HTTP regression tests cover invalid old/new names, traversal rejection, valid rename, and unchanged filesystem/cache on HTTP 400. Both newline cases failed before the change. Tests use the same exception handlers as the production-style HTTP tests. Full suite: **121 passed, 5 skipped, 62 subtests passed**. This does not add atomic cross-process rename transactions.
