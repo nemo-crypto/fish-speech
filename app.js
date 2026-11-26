@@ -6,6 +6,7 @@ const provider = byId("provider");
 const player = byId("player");
 const download = byId("download");
 const preview = byId("preview");
+const publicOrigin = "https://fishaudio-drama-3.hf.space";
 const cloudEndpoint = "https://api.fish.audio/v1/tts";
 const samples = {
   zh: "你好，欢迎来到语音工作室。文字可以很轻，声音可以走得很远。",
@@ -110,6 +111,124 @@ function statusError(code) {
   return "推理服务返回错误（HTTP " + code + "）。";
 }
 
+async function generateFromAPI(content, signal) {
+  const request = await makeRequest(content, signal);
+  setStatus("正在合成语音，请稍候…");
+  const response = await fetch(request.endpoint, {
+    method: "POST",
+    headers: request.headers,
+    body: JSON.stringify(request.body),
+    signal,
+    redirect: "error",
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+  });
+  if (!response.ok) throw new Error(statusError(response.status));
+  const mime = response.headers.get("content-type")?.split(";")[0].trim();
+  if (!mime?.startsWith("audio/") && mime !== "application/octet-stream") {
+    throw new Error("服务没有返回音频，请检查服务地址和接口配置。");
+  }
+  const audio = await response.blob();
+  if (!audio.size) throw new Error("服务返回了空音频，请重试。");
+  return {
+    audio,
+    format: request.format,
+    mime: request.format === "mp3" ? "audio/mpeg" : "audio/wav",
+  };
+}
+
+function publicUrl(value, base = publicOrigin) {
+  const url = new URL(value, base);
+  if (url.origin !== publicOrigin)
+    throw new Error("公开服务返回了未知音频地址。");
+  return url;
+}
+
+async function generatePublic(content, signal) {
+  if (content.length > 500) throw new Error("公开体验每次最多 500 字符。");
+  const call = await fetch(publicOrigin + "/gradio_api/call/v2/perform", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "omit",
+    signal,
+    body: JSON.stringify({
+      text: content,
+      mode: "Surprise",
+      voice: "clone1",
+      transcript: "",
+      name: "",
+      description: "",
+      scene: "",
+      temperature: 1,
+      top_p: 0.9,
+      top_k: 0,
+    }),
+  });
+  if (!call.ok) throw new Error(statusError(call.status));
+  const { event_id: id } = await call.json();
+  if (typeof id !== "string" || !/^[a-f0-9]+$/i.test(id)) {
+    throw new Error("公开服务没有返回任务编号。");
+  }
+  setStatus("正在排队或合成语音，请稍候…");
+  const events = await fetch(publicOrigin + "/gradio_api/call/perform/" + id, {
+    signal,
+  });
+  if (!events.ok) throw new Error(statusError(events.status));
+  const complete = (await events.text()).match(
+    /^event: complete\r?\ndata: ([^\r\n]+)/m,
+  );
+  const result = complete && JSON.parse(complete[1])?.[0];
+  if (!result?.url)
+    throw new Error("公开服务未返回音频，可能已达到免费额度，请稍后重试。");
+
+  const url = publicUrl(result.url);
+  const response = await fetch(url, { signal });
+  if (!response.ok) throw new Error(statusError(response.status));
+  if (!result.is_stream) {
+    const audio = await response.blob();
+    if (!audio.size) throw new Error("公开服务返回了空音频。");
+    const mp3 = audio.type === "audio/mpeg" || url.pathname.endsWith(".mp3");
+    const wav =
+      /audio\/(?:x-)?wav/i.test(audio.type) || url.pathname.endsWith(".wav");
+    if (!mp3 && !wav) throw new Error("公开服务返回了未知音频格式。");
+    return {
+      audio,
+      format: mp3 ? "mp3" : "wav",
+      mime: mp3 ? "audio/mpeg" : "audio/wav",
+    };
+  }
+  // Gradio returns a finalized playlist of AAC segments in streaming mode.
+  const manifest = await response.text();
+  const segments = manifest
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+  if (
+    !manifest.includes("#EXT-X-ENDLIST") ||
+    !segments.length ||
+    segments.length > 250
+  ) {
+    throw new Error("公开服务未返回完整音频。");
+  }
+  const parts = [];
+  for (let start = 0; start < segments.length; start += 8) {
+    const batch = segments.slice(start, start + 8);
+    parts.push(
+      ...(await Promise.all(
+        batch.map(async (segment) => {
+          const segmentUrl = publicUrl(segment, url);
+          if (!segmentUrl.pathname.endsWith(".aac"))
+            throw new Error("公开服务返回了未知音频格式。");
+          const chunk = await fetch(segmentUrl, { signal });
+          if (!chunk.ok) throw new Error(statusError(chunk.status));
+          return chunk.arrayBuffer();
+        }),
+      )),
+    );
+  }
+  return { audio: new Blob(parts), format: "aac", mime: "audio/aac" };
+}
+
 async function handleSubmit(event) {
   event.preventDefault();
   if (pending) return;
@@ -122,34 +241,16 @@ async function handleSubmit(event) {
 
   try {
     stopPreview();
-    const request = await makeRequest(readInput(), controller.signal);
-    setStatus("正在合成语音，请稍候…");
-    const response = await fetch(request.endpoint, {
-      method: "POST",
-      headers: request.headers,
-      body: JSON.stringify(request.body),
-      signal: controller.signal,
-      redirect: "error",
-      credentials: "omit",
-      referrerPolicy: "no-referrer",
-    });
-    if (!response.ok) throw new Error(statusError(response.status));
-    const mime = response.headers.get("content-type")?.split(";")[0].trim();
-    if (!mime?.startsWith("audio/") && mime !== "application/octet-stream") {
-      throw new Error("服务没有返回音频，请检查服务地址和接口配置。");
-    }
-    const audio = await response.blob();
-    if (!audio.size) throw new Error("服务返回了空音频，请重试。");
-    const url = URL.createObjectURL(
-      new Blob([audio], {
-        type: request.format === "mp3" ? "audio/mpeg" : "audio/wav",
-      }),
-    );
+    const content = readInput();
+    const { audio, format, mime } = await (provider.value === "public"
+      ? generatePublic(content, controller.signal)
+      : generateFromAPI(content, controller.signal));
+    const url = URL.createObjectURL(new Blob([audio], { type: mime }));
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     audioUrl = url;
     player.src = audioUrl;
     download.href = audioUrl;
-    download.download = "fish-speech." + request.format;
+    download.download = "fish-speech." + format;
     player.hidden = download.hidden = false;
     byId("empty").hidden = true;
     setStatus("生成完成，可试听或下载。");
@@ -214,6 +315,14 @@ function updateMode() {
 
 function updateProvider() {
   const local = provider.value === "local";
+  const shared = provider.value === "public";
+  if (shared) mode.value = "default";
+  mode.querySelector('[value="id"]').disabled = shared;
+  mode.querySelector('[value="audio"]').disabled = shared;
+  byId("format").hidden = byId("format-label").hidden = shared;
+  byId("key-fields").hidden = shared;
+  byId("public-hint").hidden = !shared;
+  updateMode();
   byId("local-fields").hidden = byId("key-optional").hidden = !local;
   byId("key-link").hidden = local;
   byId("key").value = "";
@@ -248,3 +357,4 @@ preview.hidden = !(
 );
 preview.addEventListener("click", playPreview);
 form.addEventListener("submit", handleSubmit);
+updateProvider();

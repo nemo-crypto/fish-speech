@@ -78,7 +78,7 @@
                 placeholder="填写录音中实际说出的内容"
               ></textarea>
             </div>
-            <label for="format">输出格式</label>
+            <label id="format-label" for="format">输出格式</label>
             <select id="format">
               <option value="wav">WAV</option>
               <option value="mp3">MP3</option>
@@ -87,6 +87,7 @@
               <summary>推理服务</summary>
               <label for="provider">服务类型</label>
               <select id="provider">
+                <option value="public">Drama 3 公开体验（免 Key）</option>
                 <option value="cloud">Fish Audio API</option>
                 <option value="local">自建 Fish Speech</option>
               </select>
@@ -100,21 +101,27 @@
                   autocomplete="url"
                 /><small>服务需允许此网页发起跨域请求。</small>
               </div>
-              <label for="key"
-                >API Key <span id="key-optional" hidden>（可选）</span></label
-              ><input
-                id="key"
-                type="password"
-                placeholder="输入 API Key"
-                autocomplete="off"
-              />
-              <small>仅用于发往所选服务的请求。网页不会保存 Key。</small>
-              <a
-                id="key-link"
-                href="https://fish.audio/app/api-keys/"
-                target="_blank"
-                rel="noopener noreferrer"
-                >获取 Fish Audio API Key ↗</a
+              <div id="key-fields" hidden>
+                <label for="key"
+                  >API Key <span id="key-optional" hidden>（可选）</span></label
+                ><input
+                  id="key"
+                  type="password"
+                  placeholder="输入 API Key"
+                  autocomplete="off"
+                />
+                <small>仅用于发往所选服务的请求。网页不会保存 Key。</small>
+                <a
+                  id="key-link"
+                  href="https://fish.audio/app/api-keys/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >获取 Fish Audio API Key ↗</a
+                >
+              </div>
+              <small id="public-hint"
+                >文字会提交给 Fish Audio
+                的公开演示服务。可免费体验默认音色，繁忙时需排队。</small
               >
             </details>
             <button class="primary" type="submit" id="generate">
