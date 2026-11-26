@@ -435,3 +435,13 @@ preview.hidden = !(
 preview.addEventListener("click", playPreview);
 form.addEventListener("submit", handleSubmit);
 updateProvider();
+
+byId("clone-shortcut").addEventListener("click", () => {
+  if (provider.value === "public") {
+    provider.value = "cloud";
+    updateProvider();
+  }
+  mode.value = "audio";
+  updateMode();
+  byId("reference").focus();
+});

@@ -292,3 +292,63 @@ footer span {
     margin-left: 59px;
   }
 }
+
+.tools {
+  display: flex;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px;
+  margin: 0 0 18px;
+  background: #e8ecdd;
+  border-radius: 13px;
+}
+.tools button,
+.text-action {
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #345540;
+  padding: 8px 13px;
+  font-weight: 650;
+}
+.tools button[aria-pressed="true"],
+.samples button[aria-pressed="true"] {
+  background: #244631;
+  color: #f6ffe9;
+}
+.text-action {
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  font-size: 0.85rem;
+}
+.tool-note {
+  display: block;
+  margin: 8px 0;
+  color: #57604f;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.tool-status {
+  min-height: 1.4rem;
+  margin: 10px 0;
+  color: #395643;
+  font-size: 0.91rem;
+}
+.tool-status.error {
+  color: #8e3021;
+}
+.settings input[type="range"] {
+  min-height: 28px;
+  padding: 0;
+  accent-color: #244631;
+}
+#voice-generate {
+  margin-top: 14px;
+}
+#voice-generate:disabled,
+.samples button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

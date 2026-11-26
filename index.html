@@ -3,14 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="description" content="Fish Speech 语音合成与参考音色体验" />
+    <meta
+      name="description"
+      content="Fish Speech 文本朗读、参考音色与音频变声"
+    />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; connect-src https: http://localhost:* http://127.0.0.1:*; media-src 'self' blob:; img-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <title>语音工作室 · Fish Speech Demo</title>
-    <link rel="stylesheet" href="./style.css" />
-    <script type="module" src="./app.js?v=2"></script>
+    <link rel="stylesheet" href="./style.css?v=3" />
+    <script type="module" src="./app.js?v=3"></script>
+    <script type="module" src="./voice.js?v=3"></script>
   </head>
   <body>
     <header>
@@ -21,155 +25,282 @@
     <main>
       <section class="intro">
         <p class="eyebrow">FISH SPEECH DEMO</p>
-        <h1>让文字开口。</h1>
-        <p>输入一段文字，使用默认音色或参考录音生成语音。</p>
+        <h1>语音工作室</h1>
+        <p>输入文字生成语音，或对现有录音调整音高和速度。</p>
       </section>
-      <form id="studio" novalidate>
-        <div class="workbench">
-          <section class="card editor" aria-labelledby="text-title">
-            <div class="card-header">
-              <h2 id="text-title"><label for="text">合成文本</label></h2>
-              <output id="count" for="text">0 / 2,000</output>
-            </div>
-            <textarea
-              id="text"
-              maxlength="2000"
-              placeholder="输入想听到的文字…"
-              required
-            ></textarea>
-            <div class="samples">
-              <button type="button" data-sample="zh">中文示例</button
-              ><button type="button" data-sample="en">English sample</button
-              ><button type="button" data-sample="ja">日本語</button>
-              <button type="button" data-sample="ko">한국어</button>
-              <button type="button" data-sample="es">Español</button>
-              <button type="button" id="clear">清空</button>
-            </div>
-          </section>
-          <section class="card settings" aria-labelledby="voice-title">
-            <h2 id="voice-title">音色设置</h2>
-            <label for="language">朗读语言</label>
-            <select id="language" aria-describedby="language-hint">
-              <option value="">跟随文本</option>
-              <option value="zh-CN">中文（普通话）</option>
-              <option value="en-US">English (US)</option>
-              <option value="en-GB">English (UK)</option>
-              <option value="ja-JP">日本語</option>
-              <option value="ko-KR">한국어</option>
-              <option value="es-ES">Español (España)</option>
-              <option value="es-MX">Español (México)</option>
-              <option value="fr-FR">Français</option>
-              <option value="de-DE">Deutsch</option>
-              <option value="pt-BR">Português (Brasil)</option>
-              <option value="it-IT">Italiano</option>
-              <option value="ru-RU">Русский</option>
-              <option value="ar-SA">العربية</option>
-              <option value="hi-IN">हिन्दी</option>
-            </select>
-            <small id="language-hint"
-              >公开体验和系统朗读使用此设置。西语、法语等使用拉丁字母的文本，建议直接选语言，以便系统朗读选对音色。</small
-            >
-            <label for="mode">音色来源</label>
-            <select id="mode">
-              <option value="default">默认音色</option>
-              <option value="id">已有音色 ID</option>
-              <option value="audio">上传参考音频</option>
-            </select>
-            <div id="id-fields" hidden>
-              <label for="voice">音色 ID</label
-              ><input
-                id="voice"
-                maxlength="255"
-                placeholder="输入服务端音色 ID"
-              />
-            </div>
-            <div id="audio-fields" hidden>
-              <label for="reference">参考音频</label
-              ><input
-                id="reference"
-                type="file"
-                accept=".wav,.mp3,.flac,.ogg,.m4a,audio/*"
-                aria-describedby="reference-hint"
-              />
-              <small id="reference-hint"
-                >上传你有权使用的清晰录音，最大 3 MB。</small
-              >
-              <label for="transcript">录音原文</label
-              ><textarea
-                id="transcript"
-                rows="3"
-                maxlength="1000"
-                placeholder="填写录音中实际说出的内容"
+      <nav class="tools" aria-label="语音工具">
+        <button
+          type="button"
+          data-tool="tts"
+          aria-pressed="true"
+          aria-controls="tts-panel"
+        >
+          文字转语音
+        </button>
+        <button
+          type="button"
+          data-tool="voice"
+          aria-pressed="false"
+          aria-controls="voice-panel"
+        >
+          音频变声
+        </button>
+      </nav>
+      <div id="tts-panel">
+        <form id="studio" novalidate>
+          <div class="workbench">
+            <section class="card editor" aria-labelledby="text-title">
+              <div class="card-header">
+                <h2 id="text-title"><label for="text">合成文本</label></h2>
+                <output id="count" for="text">0 / 2,000</output>
+              </div>
+              <textarea
+                id="text"
+                maxlength="2000"
+                placeholder="输入想听到的文字…"
+                required
               ></textarea>
-            </div>
-            <label id="format-label" for="format">输出格式</label>
-            <select id="format">
-              <option value="wav">WAV</option>
-              <option value="mp3">MP3</option>
-            </select>
-            <details id="connection" open>
-              <summary>推理服务</summary>
-              <label for="provider">服务类型</label>
-              <select id="provider">
-                <option value="public">Drama 3 公开体验（免 Key）</option>
-                <option value="cloud">Fish Audio API</option>
-                <option value="local">自建 Fish Speech</option>
+              <div class="samples">
+                <button type="button" data-sample="zh">中文示例</button
+                ><button type="button" data-sample="en">English sample</button
+                ><button type="button" data-sample="ja">日本語</button>
+                <button type="button" data-sample="ko">한국어</button>
+                <button type="button" data-sample="es">Español</button>
+                <button type="button" id="clear">清空</button>
+              </div>
+            </section>
+            <section class="card settings" aria-labelledby="voice-title">
+              <h2 id="voice-title">音色设置</h2>
+              <button type="button" class="text-action" id="clone-shortcut">
+                使用参考音色
+              </button>
+              <label for="language">朗读语言</label>
+              <select id="language" aria-describedby="language-hint">
+                <option value="">跟随文本</option>
+                <option value="zh-CN">中文（普通话）</option>
+                <option value="en-US">English (US)</option>
+                <option value="en-GB">English (UK)</option>
+                <option value="ja-JP">日本語</option>
+                <option value="ko-KR">한국어</option>
+                <option value="es-ES">Español (España)</option>
+                <option value="es-MX">Español (México)</option>
+                <option value="fr-FR">Français</option>
+                <option value="de-DE">Deutsch</option>
+                <option value="pt-BR">Português (Brasil)</option>
+                <option value="it-IT">Italiano</option>
+                <option value="ru-RU">Русский</option>
+                <option value="ar-SA">العربية</option>
+                <option value="hi-IN">हिन्दी</option>
               </select>
-              <div id="local-fields" hidden>
-                <label for="endpoint">服务地址</label
-                ><input
-                  id="endpoint"
-                  type="url"
-                  placeholder="http://127.0.0.1:8080"
-                  spellcheck="false"
-                  autocomplete="url"
-                /><small>服务需允许此网页发起跨域请求。</small>
-              </div>
-              <div id="key-fields" hidden>
-                <label for="key"
-                  >API Key <span id="key-optional" hidden>（可选）</span></label
-                ><input
-                  id="key"
-                  type="password"
-                  placeholder="输入 API Key"
-                  autocomplete="off"
-                />
-                <small>仅用于发往所选服务的请求。网页不会保存 Key。</small>
-                <a
-                  id="key-link"
-                  href="https://fish.audio/app/api-keys/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  >获取 Fish Audio API Key ↗</a
-                >
-              </div>
-              <small id="public-hint"
-                >文字会提交给 Fish Audio
-                的公开演示服务。可免费体验默认音色，繁忙时需排队。</small
+              <small id="language-hint"
+                >公开体验和系统朗读使用此设置。西语、法语等使用拉丁字母的文本，建议直接选语言，以便系统朗读选对音色。</small
               >
-            </details>
-            <button class="primary" type="submit" id="generate">
-              生成语音 <span aria-hidden="true">↗</span>
-            </button>
-            <button type="button" id="preview" class="cancel">
-              朗读预览（系统音色）
-            </button>
-            <button type="button" id="cancel" class="cancel" hidden>
-              取消请求
-            </button>
-          </section>
-        </div>
-        <p id="status" role="status" aria-live="polite"></p>
-      </form>
-      <section class="card result" aria-labelledby="result-title">
-        <div class="disc" aria-hidden="true">♫</div>
-        <div class="result-main">
-          <h2 id="result-title">生成结果</h2>
-          <p id="empty">使用 Fish Speech 生成后可在此试听并下载。</p>
-          <audio id="player" controls hidden></audio>
-        </div>
-        <a id="download" class="download" hidden download>下载音频 ↓</a>
-      </section>
+              <label for="mode">音色来源</label>
+              <select id="mode">
+                <option value="default">默认音色</option>
+                <option value="id">已有音色 ID</option>
+                <option value="audio">上传参考音频</option>
+              </select>
+              <div id="id-fields" hidden>
+                <label for="voice">音色 ID</label
+                ><input
+                  id="voice"
+                  maxlength="255"
+                  placeholder="输入服务端音色 ID"
+                />
+              </div>
+              <div id="audio-fields" hidden>
+                <label for="reference">参考音频</label
+                ><input
+                  id="reference"
+                  type="file"
+                  accept=".wav,.mp3,.flac,.ogg,.m4a,audio/*"
+                  aria-describedby="reference-hint"
+                />
+                <small id="reference-hint"
+                  >上传你有权使用的清晰录音，最大 3 MB。</small
+                >
+                <label for="transcript">录音原文</label
+                ><textarea
+                  id="transcript"
+                  rows="3"
+                  maxlength="1000"
+                  placeholder="填写录音中实际说出的内容"
+                ></textarea>
+              </div>
+              <label id="format-label" for="format">输出格式</label>
+              <select id="format">
+                <option value="wav">WAV</option>
+                <option value="mp3">MP3</option>
+              </select>
+              <details id="connection" open>
+                <summary>推理服务</summary>
+                <label for="provider">服务类型</label>
+                <select id="provider">
+                  <option value="public">Drama 3 公开体验（免 Key）</option>
+                  <option value="cloud">Fish Audio API</option>
+                  <option value="local">自建 Fish Speech</option>
+                </select>
+                <div id="local-fields" hidden>
+                  <label for="endpoint">服务地址</label
+                  ><input
+                    id="endpoint"
+                    type="url"
+                    placeholder="http://127.0.0.1:8080"
+                    spellcheck="false"
+                    autocomplete="url"
+                  /><small>服务需允许此网页发起跨域请求。</small>
+                </div>
+                <div id="key-fields" hidden>
+                  <label for="key"
+                    >API Key
+                    <span id="key-optional" hidden>（可选）</span></label
+                  ><input
+                    id="key"
+                    type="password"
+                    placeholder="输入 API Key"
+                    autocomplete="off"
+                  />
+                  <small>仅用于发往所选服务的请求。网页不会保存 Key。</small>
+                  <a
+                    id="key-link"
+                    href="https://fish.audio/app/api-keys/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    >获取 Fish Audio API Key ↗</a
+                  >
+                </div>
+                <small id="public-hint"
+                  >文字会提交给 Fish Audio
+                  的公开演示服务。可免费体验默认音色，繁忙时需排队。</small
+                >
+              </details>
+              <button class="primary" type="submit" id="generate">
+                生成语音 <span aria-hidden="true">↗</span>
+              </button>
+              <button type="button" id="preview" class="cancel">
+                朗读预览（系统音色）
+              </button>
+              <button type="button" id="cancel" class="cancel" hidden>
+                取消请求
+              </button>
+            </section>
+          </div>
+          <p id="status" role="status" aria-live="polite"></p>
+        </form>
+        <section class="card result" aria-labelledby="result-title">
+          <div class="disc" aria-hidden="true">♫</div>
+          <div class="result-main">
+            <h2 id="result-title">生成结果</h2>
+            <p id="empty">使用 Fish Speech 生成后可在此试听并下载。</p>
+            <audio id="player" controls hidden></audio>
+          </div>
+          <a id="download" class="download" hidden download>下载音频 ↓</a>
+        </section>
+      </div>
+      <div id="voice-panel" hidden>
+        <form id="voice-form" novalidate>
+          <div class="workbench">
+            <section class="card editor" aria-labelledby="source-title">
+              <h2 id="source-title">原始音频</h2>
+              <label for="voice-file">上传音频</label>
+              <input
+                type="file"
+                id="voice-file"
+                accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.webm,.flac"
+                aria-describedby="source-help"
+              />
+              <small id="source-help" class="tool-note"
+                >最大 15 MB，时长不超过 60 秒。录音和文件在浏览器内处理。</small
+              >
+              <div class="samples">
+                <button type="button" id="record">开始录音</button>
+                <button type="button" id="voice-clear" disabled>
+                  移除音频
+                </button>
+              </div>
+              <p id="source-meta" class="tool-note" hidden></p>
+              <audio
+                id="original-audio"
+                aria-label="原始音频"
+                controls
+                hidden
+              ></audio>
+            </section>
+            <section class="card settings" aria-labelledby="effect-title">
+              <h2 id="effect-title">变声设置</h2>
+              <div class="samples" role="group" aria-label="变声预设">
+                <button type="button" data-pitch="-5" aria-pressed="false">
+                  低沉
+                </button>
+                <button type="button" data-pitch="0" aria-pressed="true">
+                  原声
+                </button>
+                <button type="button" data-pitch="5" aria-pressed="false">
+                  明亮
+                </button>
+              </div>
+              <label for="pitch"
+                >音高
+                <output id="pitch-value" for="pitch">0 半音</output></label
+              >
+              <input
+                type="range"
+                id="pitch"
+                min="-7"
+                max="7"
+                step="1"
+                value="0"
+              />
+              <label for="speed"
+                >速度 <output id="speed-value" for="speed">1.00×</output></label
+              >
+              <input
+                type="range"
+                id="speed"
+                min="0.75"
+                max="1.35"
+                step="0.05"
+                value="1"
+              />
+              <button
+                class="primary"
+                type="submit"
+                id="voice-generate"
+                disabled
+              >
+                应用变声 <span aria-hidden="true">↗</span>
+              </button>
+            </section>
+          </div>
+          <p
+            id="voice-status"
+            class="tool-status"
+            role="status"
+            aria-live="polite"
+          ></p>
+        </form>
+        <section class="card result" aria-labelledby="voice-result-title">
+          <div class="disc" aria-hidden="true">♫</div>
+          <div class="result-main">
+            <h2 id="voice-result-title">变声结果</h2>
+            <p id="voice-empty">处理后可在此试听并下载 WAV。</p>
+            <audio
+              id="converted-audio"
+              aria-label="变声结果"
+              controls
+              hidden
+            ></audio>
+          </div>
+          <a
+            id="voice-download"
+            class="download"
+            download="voice-converted.wav"
+            hidden
+            >下载 WAV ↓</a
+          >
+        </section>
+      </div>
     </main>
     <footer>
       Built with Fish Audio <span>·</span>
