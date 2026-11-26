@@ -6,12 +6,69 @@ const provider = byId("provider");
 const player = byId("player");
 const download = byId("download");
 const preview = byId("preview");
+const language = byId("language");
 const publicOrigin = "https://fishaudio-drama-3.hf.space";
 const cloudEndpoint = "https://api.fish.audio/v1/tts";
 const samples = {
-  zh: "你好，欢迎来到语音工作室。文字可以很轻，声音可以走得很远。",
-  en: "Welcome to the speech studio. Take a moment to hear how a simple sentence comes to life.",
+  zh: ["zh-CN", "你好，欢迎来到语音工作室。今天就从一段简单的朗读开始。"],
+  en: [
+    "en-US",
+    "Good morning. The library opens at nine, and the café is just across the street.",
+  ],
+  ja: [
+    "ja-JP",
+    "おはようございます。図書館は九時に開きます。向かいには小さなカフェがあります。",
+  ],
+  ko: [
+    "ko-KR",
+    "안녕하세요. 도서관은 아홉 시에 문을 엽니다. 길 건너편에 작은 카페가 있어요.",
+  ],
+  es: [
+    "es-ES",
+    "Buenos días. La biblioteca abre a las nueve y hay una cafetería al otro lado de la calle.",
+  ],
 };
+const languageNames = {
+  "zh-CN": "standard Mandarin Chinese",
+  "en-US": "American English",
+  "en-GB": "British English",
+  "ja-JP": "Japanese",
+  "ko-KR": "Korean",
+  "es-ES": "Spanish as spoken in Spain",
+  "es-MX": "Mexican Spanish",
+  "fr-FR": "French as spoken in France",
+  "de-DE": "German",
+  "pt-BR": "Brazilian Portuguese",
+  "it-IT": "Italian",
+  "ru-RU": "Russian",
+  "ar-SA": "Modern Standard Arabic",
+  "hi-IN": "Hindi",
+};
+
+function detectLanguage(content) {
+  // Japanese frequently uses Han characters alongside kana.
+  if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(content)) return "ja-JP";
+  if (/\p{Script=Hangul}/u.test(content)) return "ko-KR";
+  if (/\p{Script=Han}/u.test(content)) return "zh-CN";
+  if (/\p{Script=Arabic}/u.test(content)) return "ar-SA";
+  if (/\p{Script=Devanagari}/u.test(content)) return "hi-IN";
+  if (/\p{Script=Cyrillic}/u.test(content)) return "ru-RU";
+  return "";
+}
+
+function voiceDescription(locale) {
+  const name = languageNames[locale];
+  const pronunciation = name
+    ? "A native speaker of " +
+      name +
+      ", with natural pronunciation and phrasing."
+    : "A fluent native narrator matching the language of the supplied script, with natural pronunciation and phrasing.";
+  return (
+    pronunciation +
+    " Clear, warm conversational delivery at a steady pace. Short pauses at punctuation."
+  );
+}
+
 let pending = null;
 let audioUrl = null;
 let speaking = null;
@@ -146,6 +203,7 @@ function publicUrl(value, base = publicOrigin) {
 
 async function generatePublic(content, signal) {
   if (content.length > 500) throw new Error("公开体验每次最多 500 字符。");
+  const locale = language.value || detectLanguage(content);
   const call = await fetch(publicOrigin + "/gradio_api/call/v2/perform", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -153,14 +211,15 @@ async function generatePublic(content, signal) {
     signal,
     body: JSON.stringify({
       text: content,
-      mode: "Surprise",
+      mode: "Design",
       voice: "clone1",
       transcript: "",
-      name: "",
-      description: "",
-      scene: "",
-      temperature: 1,
-      top_p: 0.9,
+      name: "Narrator",
+      description: voiceDescription(locale),
+      scene:
+        "A quiet recording studio. The narrator reads the script aloud as written.",
+      temperature: 0.75,
+      top_p: 0.85,
       top_k: 0,
     }),
   });
@@ -174,12 +233,16 @@ async function generatePublic(content, signal) {
     signal,
   });
   if (!events.ok) throw new Error(statusError(events.status));
-  const complete = (await events.text()).match(
-    /^event: complete\r?\ndata: ([^\r\n]+)/m,
-  );
+  const eventText = await events.text();
+  if (/ZeroGPU runs limit|exceeded.*quota/i.test(eventText)) {
+    throw new Error(
+      "公开模型的免费推理额度已用完。你可以试听系统朗读，或切换到自己的推理服务。",
+    );
+  }
+  const complete = eventText.match(/^event: complete\r?\ndata: ([^\r\n]+)/m);
   const result = complete && JSON.parse(complete[1])?.[0];
   if (!result?.url)
-    throw new Error("公开服务未返回音频，可能已达到免费额度，请稍后重试。");
+    throw new Error("公开服务未返回音频，请稍后重试或切换推理服务。");
 
   const url = publicUrl(result.url);
   const response = await fetch(url, { signal });
@@ -288,7 +351,19 @@ function playPreview() {
   try {
     const content = readInput();
     const utterance = new SpeechSynthesisUtterance(content);
-    utterance.lang = /\p{Script=Han}/u.test(content) ? "zh-CN" : "en-US";
+    utterance.lang = language.value || detectLanguage(content) || "en-US";
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length) {
+      const prefix = utterance.lang.split("-")[0].toLowerCase();
+      const voice =
+        voices.find(
+          (item) => item.lang.toLowerCase() === utterance.lang.toLowerCase(),
+        ) ||
+        voices.find((item) => item.lang.split("-")[0].toLowerCase() === prefix);
+      if (!voice)
+        throw new Error("系统未提供这门语言的朗读音色，可使用公开体验生成。");
+      utterance.voice = voice;
+    }
     speaking = utterance;
     preview.textContent = "停止朗读";
     setStatus("正在使用系统音色朗读。");
@@ -338,7 +413,9 @@ mode.addEventListener("change", updateMode);
 provider.addEventListener("change", updateProvider);
 for (const button of document.querySelectorAll("[data-sample]")) {
   button.addEventListener("click", () => {
-    text.value = samples[button.dataset.sample];
+    const [locale, content] = samples[button.dataset.sample];
+    text.value = content;
+    language.value = locale;
     updateCount();
     text.focus();
   });
